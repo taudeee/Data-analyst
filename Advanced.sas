@@ -313,3 +313,225 @@ proc sql;
 select *
 from class;
 quit;
+
+options source source symbolgen mlogic mprint merror serror;
+
+/* whatever after colon(:) is micro variable */
+proc sql;
+	select name
+	into :student_name
+	from sashelp.class;
+quit;
+
+/*create mirco variable name and values */
+
+%put &=student_name;
+
+%put _global_;
+
+%put &=syslast;
+
+
+proc sql;
+	create table class as
+	select *
+	from sashelp.class;
+quit;
+
+%put &=syslast;
+
+proc print;
+run;
+
+%put &=sysdate9;
+
+/*Asigning Multiple macro_vatiable */
+proc sql;
+	select name, age
+	into :student_name, :student_age
+	from sashelp.class;
+quit;
+
+%put &= student_name  &= student_age;
+
+proc sql;
+	select *
+	into :student_info1 - :student_info5
+	from sashelp.class;
+quit;
+
+/*creating ranges of variable */
+proc sql;
+	select name, age
+	into: student_name1 - :student_name19, :student_age1 - :student_age19
+	from sashelp.class;
+quit;
+
+/*we are not supposed to put any space in between "&=" */
+%put &=student_name1   &=student_age1
+     &=student_name19   &=student_age19;
+
+
+/*when we use separated by, we get all the rows */
+proc sql;
+	select name
+	into :student_name separated by ','
+	from sashelp.class;
+quit;
+
+
+%put &=student_name;
+
+
+proc sql;
+	select name
+	into :Female_student separated by ','
+	from sashelp.class
+	where sex = 'F';
+quit;
+
+%put &=Female_student;
+
+
+
+/*Creating macro variable using quotes */
+proc sql;
+	select quote (name)
+	into :Female_student separated by ','
+	from sashelp.class
+	where sex = 'F';
+quit;
+
+%put &=Female_student;
+
+
+
+/*Cartesian Product */
+
+proc sql;
+	select *
+	from sashelp.class, sashelp.heart;
+quit;
+
+proc sql;
+	create table A (
+	A int,
+	one char(5));
+quit;
+
+Proc sql;
+	insert into A (A, one)
+	values (2, 'Black')
+	values (1, 'White')
+	;
+quit;
+
+proc sql;
+	create table B (
+	B int,
+	Two char(5));
+quit;
+
+Proc sql;
+	insert into B (B, Two)
+	values (1, 'Mark')
+	values (2, 'Matt')
+	;
+quit;
+
+
+Proc sql;
+	select *
+	from A, B;
+quit;
+
+
+/*Inner Join */
+Proc sql;
+create table Student (
+Student_id int,
+Name char(20),
+Grade int
+);
+quit;
+
+Proc sql;
+Insert into student (student_id, Name, Grade)
+values (1, 'Hit', 90)
+values (2, 'SAM', 70)
+values (3, 'Krish', 80)
+values (4, 'Ram', 78)
+values (5, 'Sita', 60)
+;
+	select *
+	from student;
+quit;
+
+
+Proc sql;
+create table Details (
+Student_id int,
+Country char(20),
+Sport char(20)
+);
+quit;
+
+proc sql;
+	Insert into Details(Student_id, country, sport)
+	values(1, 'Aus', 'Cricket')
+	values(2, 'Nep', 'Basketball')
+	Values(3, 'Ind', 'Footy')
+	Values(4, 'Ban', 'Cricket')
+	values(5, 'Sri', 'Basketball')
+	;
+	select *
+	from details;
+quit;
+
+/*column with same name need to be mentioned in the select statement */
+
+Proc sql;
+	select student.student_id, student.name, details.sport
+	from student, Details
+	where student.student_id = details.Student_id;
+quit;
+
+
+proc sql;
+	select *
+	from student, details
+	where student.student_id = details.student_id;
+quit;
+
+
+data feat1;
+input Item_id Model & $17. Weight_gm Display_in Radio $ External_mem $;
+datalines;
+101 iphone4S  140 3.5 N N
+102 HTC desireHD  164 4.3 Y Y
+103 SamsungGalaxy SII  116 4.3 Y Y
+104 NokiaN9  135 3.9 N N
+106 Blackberry9900  130 2.8 N Y
+;
+
+PROC PRINT DATA=FEAT1;
+RUN;
+
+ 
+
+data feat2;
+input Item_id GHZ RAM_MB BATT_HRS OS & $16.;
+datalines;
+101 1 512 14 iOS5
+102 1 768 9 AndroidV2.2
+103 1.2 1000 18 AndroidV2.3
+105 1 512 20 SymbianAnna
+108 0.8 512 15 Blackberry OS7.0
+;
+
+Proc print data = feat2;
+run;
+
+
+
+
