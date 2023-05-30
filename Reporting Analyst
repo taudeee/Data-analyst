@@ -1,1 +1,275 @@
+libname final '/home/u63059416/Data/Banking';
+
+/*creating filename for import */
+
+filename accoun '/home/u63059416/Data/Banking/accounts.csv';
+filename code '/home/u63059416/Data/Banking/code.csv';
+filename banance '/home/u63059416/Data/Banking/o_balance.csv';
+
+
+/*creating macros for importing file */
+
+
+%macro bank(indata, outdata);
+	proc import filenam = &indata
+	out = &outdata
+	dbms = csv
+	replace;
+	run;
+%mend bank
+
+
+/*giving sas name to csv file which was imported in above step */
+
+%bank(accoun, account);
+%bank(code, code);
+%bank(banance, balance);
+
+
+proc sort data = account
+	out = account;
+	by code;
+run;
+
+/*sorting code data */
+proc sort data = code
+	out = code;
+	by code;
+run;
+
+/*merging data set */
+data sort_data;
+merge account(in =a) code(in = b);
+by code;
+if a = b;
+run;
+
+/*sorting data set using macros */
+
+%macro merging(d1, d2);
+	proc sort data = &d1;
+	by &d2;
+	run;
+%mend merging;
+
+%merging(sort_data, acct_no);
+%merging(balance, acct_no);
+
+
+/*merging dataset */
+
+data sorted_data;
+merge sort_data(in=a) balance(in=b);
+by acct_no;
+if a = b;
+run;
+
+/*outstanding at the end of last year*/
+
+proc sql;
+create table Outstand_previous_year as (
+	select segment, sum(outstanding_bal) as total_outstanding_bal
+	from sorted_data
+	where bal_date = 22735
+	group by segment)
+	order by segment;
+quit;
+
+
+/*calculation of yoy growth of advance */
+proc sql;
+create table YOY_growth_advance as(
+	select segment, sum(loan_amount) as total_loan_amount
+	from sorted_data
+	where open_date between 22371 and 22735
+	group by segment)
+	order by segment;
+quit;
+
+
+
+/*outstanding at the end of year */
+proc sql;
+create table  outstanding_at_end_year as (
+	select segment, sum(outstanding_bal) as total_out_bal_eYear
+	from sorted_data
+	where bal_date = 23100
+	group by segment)
+	order by segment; 
+quit;
+
+
+
+/* To find out the NPA */
+
+proc sql;
+create table NPA as (
+	select segment, sum(outstanding_bal) as total_NPA_out_bal
+	from sorted_data
+	where NPA = 'Yes'
+	group by segment)
+	order by segment;
+quit;
+
+
+/* to calculate % of NPA */
+
+data calculation;
+	merge NPA(in=a)  outstanding_at_end_year(in = b);
+	by segment;
+	if a = b;
+run;
+
+
+proc sql;
+	Alter table calculation
+	Add increase_NPA int;
+	
+	Update calculation
+	set increase_NPA = (total_NPA_out_bal/total_out_bal_eYear) * 100;
+quit;
+
+
+proc print data = calculation;
+run;
+
+
+data segment_data;
+merge Outstand_previous_year(in =a) YOY_growth_advance(in = b) calculation(in =c);
+by segment ;
+if a = b = c;
+run;
+
+
+/*time to calculate data by sub_segment */
+
+proc sql;
+create table Outstand_previous_year1 as (
+	select segment,sub_segment, sum(outstanding_bal) as total_outstanding_bal
+	from sorted_data
+	where bal_date = 22735
+	group by segment,sub_segment)
+	order by segment,sub_segment;
+quit;
+
+
+/*calculation of yoy growth of advance */
+proc sql;
+create table YOY_growth_advance1 as(
+	select segment,sub_segment, sum(loan_amount) as total_loan_amount
+	from sorted_data
+	where open_date between 22371 and 22735
+	group by segment,sub_segment)
+	order by segment,sub_segment;
+quit;
+
+
+
+/*outstanding at the end of year */
+proc sql;
+create table  outstanding_at_end_year1 as (
+	select segment, sub_segment, sum(outstanding_bal) as total_out_bal_eYear
+	from sorted_data
+	where bal_date = 23100
+	group by segment,sub_segment)
+	order by segment,sub_segment; 
+quit;
+
+
+
+/* To find out the NPA */
+
+proc sql;
+create table NPA1 as 
+	select segment,sub_segment, sum(outstanding_bal) as total_NPA_out_bal
+	from sorted_data
+	where NPA = 'Yes'
+	group by segment,sub_segment
+	order by segment,sub_segment;
+quit;
+
+
+/* to calculate % of NPA */
+
+data calculation1;
+	merge NPA1(in=a)  outstanding_at_end_year1(in = b);
+	by segment sub_segment;
+	if a = b;
+run;
+
+
+proc sql;
+	Alter table calculation1
+	Add increase_NPA int;
+	
+	Update calculation1
+	set increase_NPA = (total_NPA_out_bal/total_out_bal_eYear) * 100;
+quit;
+
+
+proc print data = calculation1;
+run;
+
+
+data subsegment_data;
+merge outstand_previous_year1(in =a) YOY_growth_advance1(in = b) calculation1(in =c);
+by  segment sub_segment ;
+if a and b and c;
+run;
+
+proc print data = subsegment_data;
+run;
+
+proc print data = segment_data;
+run;
+
+proc sort data = segment_data out = segment_data;
+by segment;
+run;
+
+
+proc sort data = subsegment_data out = subsegment_data;
+by segment sub_segment;
+run;
+
+
+data ILIP;
+set segment_data subsegment_data;
+by segment ;
+run;
+
+data final.ILIP1 (drop = segment sub_segment);
+length description $50;
+set ILIP;
+	if sub_segment = "" then description = segment;
+	else description = '      '||sub_segment; /*it will */
+run;
+
+options orientation = landscape nodate nonumber topmargin =0.5in bottommargin = 0.5in 
+leftmargin = 0.3in rightmargin = 0.3in;
+ods rtf file = '/home/u63059416/Data/Banking/final_report.rtf';
+	proc report data = ILIP1 nowd ps=200 ls=200 headline headskip split ="|" 
+        style(header)= [background = white font_face=times font_size = 9pt]
+     style(column) = [font_face= times font_size = 9pt]  
+     style(report)= [rules=none frame = void ]
+     style(header)=[background=white borderbottomwidth=1 bordertopwidth=1 background=_undef_ font_face= times font_size = 9pt]
+     spanrows;
+	columns description total_outstanding_bal total_loan_amount total_NPA_out_bal total_out_bal_eyear increase_NPA;
+	define description/display 'Industry segment' style=[asis=on];  
+	define total_outstanding_bal/display 'Outstanding at the | end of the year' style=[asis=on];
+	define total_loan_amount/display 'YOY Growth | of Advance' style=[asis=on];
+	define total_NPA_out_bal/display 'NPA as | end of the year' style=[asis=on];
+	define total_out_bal_eyear/display 'Outstanding at the | end of Year' style=[asis=on];
+	define increase_NPA/display '% of NPA' style=[asis=on];
+	
+	compute description;
+		if description in ('Chemicals', 'Commercial Real Estate', 'Engineering', 'Infrastructure', 'NBPCs', 'Retail', 'Textile', 'Others')
+		then call define(_col_,"Style","style=[font_weight=bold]");
+	endcomp;
+run;
+ods rtf close;
+
+
+
+
 
